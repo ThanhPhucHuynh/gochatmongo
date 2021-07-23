@@ -12,7 +12,7 @@ import (
 
 type Message struct {
 	ID          primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
-	RoomID      primitive.ObjectID `json:"room_id" bson:"_room_id"`
+	RoomID      primitive.ObjectID `json:"room_id" bson:"room_id"`
 	SenderID    primitive.ObjectID `json:"sender_id" bson:"sender_id"`
 	Content     string             `json:"content" bson:"content"`
 	Attachments string             `json:"attachments" bson:"attachments"`

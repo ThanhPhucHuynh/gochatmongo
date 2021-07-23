@@ -36,7 +36,7 @@ func RoomsList(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func NewRoom(w http.ResponseWriter, r *http.Request) {
+func NewRoomMongo(w http.ResponseWriter, r *http.Request) {
 	// Write the user to mongo
 	a, err := primitive.ObjectIDFromHex("60e3f9a7e1ab4c3dfc8fe4c1")
 	b, err := primitive.ObjectIDFromHex("60e3b5dbe1ab4c388ce2d04c")

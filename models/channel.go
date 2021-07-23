@@ -2,91 +2,92 @@ package models
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 
-	"github.com/gorilla/websocket"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type Channel struct {
-	forward chan *Message
-	join    chan *Client
-	leave   chan *Client
-
-	clients map[*Client]bool
+type WsServer struct {
+	clients    map[*Client]bool
+	register   chan *Client
+	unregister chan *Client
+	broadcast  chan *MessageSocket
+	rooms      map[*RoomSocket]bool
 }
 
-func (r *Channel) Run() {
+func NewWebsocketServer() *WsServer {
+	return &WsServer{
+		clients:    make(map[*Client]bool),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		broadcast:  make(chan *MessageSocket),
+		rooms:      make(map[*RoomSocket]bool),
+	}
+}
+
+func (server *WsServer) Run() {
 	for {
 		select {
-		case client := <-r.join:
-			r.clients[client] = true
-		case client := <-r.leave:
-			if _, ok := r.clients[client]; ok {
-				delete(r.clients, client)
-			}
-		case msg := <-r.forward:
-			for client := range r.clients {
-				client.send <- msg
-			}
 
+		case client := <-server.register:
+			server.registerClient(client)
+
+		case client := <-server.unregister:
+			server.unregisterClient(client)
+
+		case message := <-server.broadcast:
+			server.broadcastToClients(message)
 		}
+
 	}
 }
 
-func NewChanRoom() *Channel {
-	r := &Channel{
-		forward: make(chan *Message),
-		join:    make(chan *Client),
-		leave:   make(chan *Client),
-		clients: make(map[*Client]bool),
-	}
-
-	return r
+func (server *WsServer) registerClient(client *Client) {
+	server.clients[client] = true
 }
 
-const (
-	socketBufferSize  = 1024
-	messageBufferSize = 256
-)
-
-var upgrader = &websocket.Upgrader{ReadBufferSize: socketBufferSize,
-	WriteBufferSize: socketBufferSize,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+func (server *WsServer) unregisterClient(client *Client) {
+	if _, ok := server.clients[client]; ok {
+		delete(server.clients, client)
+	}
 }
 
-func ChannelChat(c *Channel, sm *chan SaveMessage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		Parameter := r.URL.Query().Get("room")
-
-		socket, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Print("ServeHTTP:", err)
-			return
-		}
-		a, _ := primitive.ObjectIDFromHex(Parameter)
-
-		client := &Client{
-			socket:  socket,
-			send:    make(chan *Message, messageBufferSize),
-			channel: c,
-			user:    &User{},
-			room:    a,
-			save:    sm,
-		}
-
-		fmt.Println(c.clients)
-
-		c.join <- client
-		defer func() {
-			c.leave <- client
-		}()
-
-		go client.write()
-		client.read()
+func (server *WsServer) broadcastToClients(messageSocket *MessageSocket) {
+	for client := range server.clients {
+		client.send <- messageSocket
 	}
+}
+
+func (server *WsServer) findRoomByID(ID primitive.ObjectID) *RoomSocket {
+	var foundRoom *RoomSocket
+	fmt.Println(server.rooms)
+
+	for room := range server.rooms {
+		if room.GetId() == ID {
+			fmt.Println(room.ID, room.GetId())
+			foundRoom = room
+			break
+		}
+	}
+
+	return foundRoom
+}
+
+func (server *WsServer) createRoom(id primitive.ObjectID, private bool) *RoomSocket {
+	room := NewRoom(id, private)
+	go room.RunRoomSocket()
+	server.rooms[room] = true
+
+	return room
+}
+
+func (server *WsServer) findClientByID(ID primitive.ObjectID) *Client {
+	var foundClient *Client
+	for client := range server.clients {
+		if client.ID == ID {
+			foundClient = client
+			break
+		}
+	}
+
+	return foundClient
 }
