@@ -163,7 +163,7 @@ func ServeWs(wsServer *WsServer, w http.ResponseWriter, r *http.Request) {
 	id, ok := r.URL.Query()["id"]
 
 	if !ok || len(id[0]) < 1 {
-		log.Println("Url Param 'name' is missing")
+		log.Println("Url Param 'id rooms' is missing")
 		return
 	}
 
